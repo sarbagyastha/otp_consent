@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.util.Log
 import androidx.annotation.NonNull
 import com.google.android.gms.auth.api.phone.SmsRetriever
 import com.huynn109.otp_consent.SMSBroadcastReceiver.Companion.SMS_CONSENT_REQUEST
@@ -16,7 +15,6 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
-import io.flutter.plugin.common.PluginRegistry.Registrar
 import java.util.regex.Pattern
 
 /** OtpConsentPlugin */
@@ -28,37 +26,15 @@ class OtpConsentPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plugin
     private val smsBroadcastReceiver by lazy { SMSBroadcastReceiver() }
 
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-        methodChannel = MethodChannel(flutterPluginBinding.flutterEngine.dartExecutor, METHOD_CHANNEL)
+        methodChannel = MethodChannel(flutterPluginBinding.binaryMessenger, "otp_consent")
         methodChannel.setMethodCallHandler(this)
         mContext = flutterPluginBinding.applicationContext
-    }
-
-    // This static function is optional and equivalent to onAttachedToEngine. It supports the old
-    // pre-Flutter-1.12 Android projects. You are encouraged to continue supporting
-    // plugin registration via this function while apps migrate to use the new Android APIs
-    // post-flutter-1.12 via https://flutter.dev/go/android-project-migration.
-    //
-    // It is encouraged to share logic between onAttachedToEngine and registerWith to keep
-    // them functionally equivalent. Only one of onAttachedToEngine or registerWith will be called
-    // depending on the user's project. onAttachedToEngine or registerWith must both be defined
-    // in the same class.
-
-
-    companion object {
-        val TAG: String = OtpConsentPlugin::class.java.simpleName
-        const val METHOD_CHANNEL: String = "otp_consent"
-
-        @JvmStatic
-        fun registerWith(registrar: Registrar) {
-            val channel = MethodChannel(registrar.messenger(), METHOD_CHANNEL)
-            channel.setMethodCallHandler(OtpConsentPlugin())
-        }
     }
 
     override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: Result) {
         when (call.method) {
             "getPlatformVersion" -> result.success("Android ${android.os.Build.VERSION.RELEASE}")
-            "startListening" -> startListening(result)
+            "startListening" -> startListening(result, call.arguments?.toString())
             "stopListening" -> stopListening()
             else -> result.notImplemented()
         }
@@ -86,8 +62,7 @@ class OtpConsentPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plugin
                 when {
                     resultCode == Activity.RESULT_OK && data != null -> {
                         val message = data.getStringExtra(SmsRetriever.EXTRA_SMS_MESSAGE)
-                        val messageParsed = parseOneTimeCode(message)
-                        methodChannel.invokeMethod("onSmsConsentReceived", messageParsed)
+                        methodChannel.invokeMethod("onSmsConsentReceived", message)
                     }
                     else -> {
                         // Consent denied. User can type OTC manually.
@@ -109,14 +84,14 @@ class OtpConsentPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plugin
         unRegisterBroadcastListener()
     }
 
-    private fun startListening(result: Result) {
+    private fun startListening(result: Result, phone: String?) {
         synchronized(this) {
-            startBroadcastReceiver(result)
+            startBroadcastReceiver(result, phone)
         }
     }
 
-    private fun startBroadcastReceiver(result: Result) {
-        SmsRetriever.getClient(mActivity).startSmsUserConsent(null)
+    private fun startBroadcastReceiver(result: Result, phone: String?) {
+        SmsRetriever.getClient(mActivity).startSmsUserConsent(phone)
         smsBroadcastReceiver.injectListener(mActivity, this)
         mActivity.registerReceiver(smsBroadcastReceiver, IntentFilter(SmsRetriever.SMS_RETRIEVED_ACTION))
         result.success(true)
@@ -134,16 +109,4 @@ class OtpConsentPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plugin
         } catch (ex: Exception) {
         }
     }
-
-    private fun parseOneTimeCode(message: String?): String? {
-        val pattern = Pattern.compile("\\d{4,6}")
-        if (message != null) {
-            val matcher = pattern.matcher(message)
-            if (!matcher.find()) return message
-            return matcher.group(0)
-        }
-        return null
-    }
-
-
 }

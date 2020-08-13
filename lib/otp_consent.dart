@@ -2,6 +2,7 @@
 /// It is compatible Android only.
 ///
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/services.dart';
 
@@ -26,8 +27,8 @@ class OtpConsent {
     return version;
   }
 
-  Future<bool> get startListening async {
-    final bool startListening = await _channel.invokeMethod('startListening');
+  Future<bool> startListening([String phone]) async {
+    final bool startListening = await _channel.invokeMethod('startListening', phone);
     return startListening;
   }
 
@@ -58,18 +59,22 @@ mixin OtpConsentAutoFill {
   String sms;
   StreamSubscription _subscription;
 
-  Future<void> startSmsListening() async {
-    _subscription?.cancel();
-    _subscription = _otpConsent.sms.listen((sms) {
-      this.sms = sms;
-      smsReceived(sms);
-    });
-    await _otpConsent.startListening;
+  Future<void> startSmsListening([String phone]) async {
+    if (Platform.isAndroid) {
+      _subscription?.cancel();
+      _subscription = _otpConsent.sms.listen((sms) {
+        this.sms = sms;
+        smsReceived(sms);
+      });
+      await _otpConsent.startListening(phone);
+    }
   }
 
   Future<void> stopSmsListen() async {
-    await _otpConsent.stopListening;
-    _cancel();
+    if (Platform.isAndroid) {
+      await _otpConsent.stopListening;
+      _cancel();
+    }
   }
 
   void _cancel() {
