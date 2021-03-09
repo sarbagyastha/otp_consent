@@ -10,7 +10,7 @@ import 'package:flutter/services.dart';
 ///
 class OtpConsent {
   /// Create instance [OtpConsent] plugin
-  static OtpConsent _singleton;
+  static OtpConsent? _singleton;
   factory OtpConsent() => _singleton ??= OtpConsent._();
   OtpConsent._() {
     _channel.setMethodCallHandler(_handleMethod); // Set callback from native
@@ -27,8 +27,9 @@ class OtpConsent {
     return version;
   }
 
-  Future<bool> startListening([String phone]) async {
-    final bool startListening = await _channel.invokeMethod('startListening', phone);
+  Future<bool> startListening([String? phone]) async {
+    final bool startListening =
+        await _channel.invokeMethod('startListening', phone);
     return startListening;
   }
 
@@ -56,10 +57,10 @@ class OtpConsent {
 
 mixin OtpConsentAutoFill {
   final OtpConsent _otpConsent = OtpConsent();
-  String sms;
-  StreamSubscription _subscription;
+  String? sms;
+  StreamSubscription? _subscription;
 
-  Future<void> startSmsListening([String phone]) async {
+  Future<void> startSmsListening([String? phone]) async {
     if (Platform.isAndroid) {
       _subscription?.cancel();
       _subscription = _otpConsent.sms.listen((sms) {
